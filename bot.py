@@ -1,29 +1,46 @@
 import asyncio
+import json
+import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-import os
-API_TOKEN = os.getenv("API_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
+# --- Конфіг ---
+API_TOKEN = os.getenv("API_TOKEN", "8383126261:AAHV-m1cRtEs8uU0-zMUGo4oRoXsv_o3b0A")
+ADMIN_ID = int(os.getenv("ADMIN_ID", 7666912965))  # свій Telegram ID
 
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 
-# временные данные пользователей
+# --- Збереження користувачів ---
+USERS_FILE = "users.json"
+
+def load_users():
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, "r") as f:
+                return set(json.load(f))
+        except:
+            return set()
+    return set()
+
+def save_users():
+    with open(USERS_FILE, "w") as f:
+        json.dump(list(all_users), f)
+
+# тимчасові дані
 user_data = {}
-# список пользователей, которые завершили заявку
 completed_users = set()
-# список ВСЕХ пользователей, которые хотя бы раз нажали /start
-all_users = set()
+all_users = load_users()  # ✅ завантажуємо користувачів при старті
 
 
 # --- Команда /start ---
 @dp.message(Command("start"))
 async def start(message: types.Message):
     uid = message.from_user.id
-    all_users.add(uid)  # ✅ сохраняем всех пользователей
+    all_users.add(uid)
+    save_users()  # ✅ зберігаємо у файл
 
     await message.answer(
         "👋 Вас приветствует <b>экспериментальный бот Министерства здравоохранения Республики Беларусь</b>\n\n"
@@ -37,22 +54,21 @@ async def start(message: types.Message):
         completed_users.remove(uid)
 
 
-# --- Универсальная рассылка ---
+# --- Розсилка ---
 @dp.message(Command("broadcast"))
 async def broadcast_command(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return
     await message.answer("✍️ Отправьте сообщение (текст, фото, видео и т.д.), которое хотите разослать всем пользователям.")
-    # включаем режим рассылки
     user_data[message.from_user.id] = {"mode": "broadcast"}
 
 
-# --- Основной обработчик сообщений ---
+# --- Основний обробник ---
 @dp.message()
 async def form_handler(message: types.Message):
     uid = message.from_user.id
 
-    # --- 📢 Если админ в режиме рассылки ---
+    # --- Якщо адмін у режимі розсилки ---
     if uid == ADMIN_ID and uid in user_data and user_data[uid].get("mode") == "broadcast":
         success, fail = 0, 0
         for user_id in all_users:
@@ -63,10 +79,10 @@ async def form_handler(message: types.Message):
                 fail += 1
 
         await message.answer(f"✅ Рассылка завершена.\nОтправлено: {success}\nОшибки: {fail}")
-        user_data.pop(uid, None)  # выключаем режим
+        user_data.pop(uid, None)
         return
 
-    # --- 📋 Новая заявка ---
+    # --- Нова заявка ---
     if message.text == "📋 Подать новую заявку":
         await message.answer("✍️ Укажите ваше <b>ФИО</b>:", reply_markup=ReplyKeyboardRemove())
         user_data[uid] = {}
@@ -77,13 +93,13 @@ async def form_handler(message: types.Message):
     if uid not in user_data:
         return
 
-    # --- Если пользователь прислал контакт ---
+    # --- Якщо надійшов контакт ---
     if message.contact and "phone" not in user_data[uid]:
         user_data[uid]["phone"] = message.contact.phone_number
         await message.answer("📝 Опишите вашу <b>проблему или вопрос</b>:", reply_markup=ReplyKeyboardRemove())
         return
 
-    # --- Анкета по шагам ---
+    # --- Анкета по кроках ---
     if "fio" not in user_data[uid]:
         user_data[uid]["fio"] = message.text
         await message.answer("📅 Укажите вашу <b>дату рождения</b> (ДД.ММ.ГГГГ):")
@@ -91,7 +107,6 @@ async def form_handler(message: types.Message):
     elif "dob" not in user_data[uid]:
         user_data[uid]["dob"] = message.text
 
-        # кнопка "Поделиться контактом"
         contact_keyboard = ReplyKeyboardMarkup(
             keyboard=[[KeyboardButton(text="📱 Поделиться номером", request_contact=True)]],
             resize_keyboard=True,
@@ -113,10 +128,8 @@ async def form_handler(message: types.Message):
             f"📝 Вопрос/Проблема: {user_data[uid]['question']}"
         )
 
-        # Отправляем админу
         await bot.send_message(ADMIN_ID, text)
 
-        # Кнопка для новой заявки
         keyboard = ReplyKeyboardMarkup(
             keyboard=[[KeyboardButton(text="📋 Подать новую заявку")]],
             resize_keyboard=True,
@@ -134,7 +147,7 @@ async def form_handler(message: types.Message):
         completed_users.add(uid)
 
 
-# --- Запуск бота ---
+# --- Запуск ---
 async def main():
     await dp.start_polling(bot)
 
