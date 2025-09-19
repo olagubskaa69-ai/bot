@@ -4,8 +4,9 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-API_TOKEN = "8383126261:AAHV-m1cRtEs8uU0-zMUGo4oRoXsv_o3b0A"
-ADMIN_ID = 7666912965  # твій Telegram ID (число!)
+import os
+API_TOKEN = os.getenv("API_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
