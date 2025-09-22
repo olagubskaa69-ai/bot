@@ -71,12 +71,17 @@ async def form_handler(message: types.Message):
     # --- Якщо адмін у режимі розсилки ---
     if uid == ADMIN_ID and uid in user_data and user_data[uid].get("mode") == "broadcast":
         success, fail = 0, 0
-        for user_id in all_users:
+        for user_id in list(all_users):
             try:
                 await bot.copy_message(chat_id=user_id, from_chat_id=uid, message_id=message.message_id)
                 success += 1
-            except:
+                await asyncio.sleep(0.05)  # ✅ невелика пауза між повідомленнями
+            except Exception as e:
                 fail += 1
+                # якщо користувач заблокував — видаляємо його зі списку
+                if "blocked by the user" in str(e):
+                    all_users.remove(user_id)
+                    save_users()
 
         await message.answer(f"✅ Рассылка завершена.\nОтправлено: {success}\nОшибки: {fail}")
         user_data.pop(uid, None)
@@ -154,3 +159,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
